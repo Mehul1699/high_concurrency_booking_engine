@@ -79,7 +79,7 @@ The schema will be refined during implementation to ensure data integrity, norma
 ## Project Structure
 
 ```text
-bookmyshow-db/
+high_concurrency_booking_engine/
 │
 ├── README.md
 │
