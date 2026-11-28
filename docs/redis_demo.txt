@@ -1,0 +1,107 @@
+
+============================================================
+P1: REDIS-BASED TEMPORARY SEAT HOLD DEMONSTRATION
+============================================================
+
+Objective:
+Use Redis to temporarily reserve a seat while a user
+completes the booking and payment process.
+
+Redis key format:
+seat_hold:<show_id>:<seat_id>
+
+Example:
+seat_hold:1:1
+
+------------------------------------------------------------
+1. ACQUIRE A TEMPORARY SEAT HOLD
+------------------------------------------------------------
+
+SET seat_hold:1:1 user_1_token NX EX 120
+
+Explanation:
+- NX: Set the key only if it does not already exist.
+- EX 120: Automatically expire the key after 120 seconds.
+- The token identifies the user or booking that owns the hold.
+
+Expected result: OK
+
+------------------------------------------------------------
+2. CHECK THE CURRENT HOLD
+------------------------------------------------------------
+
+GET seat_hold:1:1
+
+TTL seat_hold:1:1
+
+Explanation:
+GET retrieves the current hold token.
+TTL returns the remaining lifetime in seconds.
+
+------------------------------------------------------------
+3. SIMULATE A COMPETING USER
+------------------------------------------------------------
+
+SET seat_hold:1:1 user_2_token NX EX 120
+
+Expected result: nil
+
+Explanation:
+The key already exists, so another user cannot acquire
+the same temporary hold.
+
+------------------------------------------------------------
+4. DEMONSTRATE AUTOMATIC EXPIRY
+------------------------------------------------------------
+
+EXPIRE seat_hold:1:1 10
+
+Wait for 10 seconds.
+
+GET seat_hold:1:1
+
+Expected result: nil
+
+Explanation:
+Redis automatically removes the key after its TTL expires.
+
+------------------------------------------------------------
+5. ANOTHER USER ACQUIRES THE SEAT
+------------------------------------------------------------
+
+SET seat_hold:1:1 user_2_token NX EX 120
+
+Expected result: OK
+
+------------------------------------------------------------
+6. SAFE RELEASE USING LUA
+------------------------------------------------------------
+
+EVAL "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end" 1 seat_hold:1:1 user_1_token
+
+Expected result: 0
+
+Explanation:
+A user cannot release another user's hold.
+
+Release using the correct token:
+
+EVAL "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end" 1 seat_hold:1:1 user_2_token
+
+Expected result: 1
+
+------------------------------------------------------------
+IMPORTANT DESIGN NOTE
+------------------------------------------------------------
+
+Redis manages temporary seat ownership, while MySQL
+maintains the permanent booking and seat status.
+
+Redis expiry does not automatically update MySQL.
+The application must reconcile expired holds with MySQL,
+using ownership checks so an old expiry cannot release
+a newer user's reservation.
+
+============================================================
+END OF REDIS DEMONSTRATION
+============================================================
